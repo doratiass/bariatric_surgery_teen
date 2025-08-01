@@ -1,8 +1,8 @@
 # ---------------------------------------------------------------------------- #
 # Script: BMI Data Processing and Labs Follow-Up
-# Description: This script processes BMI data by removing outliers and duplicate 
-#              measurements, reshaping the data, calculating BMI and standardized 
-#              scores, and finally merging lab follow-up data to create the final 
+# Description: This script processes BMI data by removing outliers and duplicate
+#              measurements, reshaping the data, calculating BMI and standardized
+#              scores, and finally merging lab follow-up data to create the final
 #              long and wide datasets.
 # ---------------------------------------------------------------------------- #
 
@@ -26,16 +26,20 @@ bmi_raw %>%
   filter(observation_date > index_date) %>%
   ggplot(aes(x = test, y = observation_result, color = test)) +
   geom_boxplot() +
-  facet_wrap(.~test, scales = "free")
+  facet_wrap(. ~ test, scales = "free")
 
 # Filter out outliers by setting acceptable value ranges for each test type.
 bmi_data_outliers <- bmi_raw %>%
-  mutate(  
+  mutate(
     observation_result = case_when(
-      test == "BMI" & observation_result > 15 & observation_result < 200 ~ observation_result,
-      test == "height" & observation_result > 140 & observation_result < 220 ~ observation_result,
-      test == "weight" & observation_result > 30 & observation_result < 250 ~ observation_result
-    )) %>%
+      test == "BMI" & observation_result > 15 & observation_result < 200 ~
+        observation_result,
+      test == "height" & observation_result > 140 & observation_result < 220 ~
+        observation_result,
+      test == "weight" & observation_result > 30 & observation_result < 250 ~
+        observation_result
+    )
+  ) %>%
   drop_na()
 
 # Plot boxplots again for the outlier-removed data.
@@ -43,7 +47,7 @@ bmi_data_outliers %>%
   filter(observation_date > index_date) %>%
   ggplot(aes(x = test, y = observation_result, color = test)) +
   geom_boxplot() +
-  facet_wrap(.~test, scales = "free")
+  facet_wrap(. ~ test, scales = "free")
 
 # ---------------------------------------------------------------------------- #
 # Remove Duplicate Measurements and Find Best Measurement --------------------
@@ -66,8 +70,11 @@ bmi_data_dup_clean <- bmi_data_outliers %>%
 bmi_data_dup_clean_avg <- bmi_data_outliers %>%
   filter(fake_id %in% unique(dup_id)) %>%
   group_by(fake_id, index_date, test) %>%
-  reframe(find_best_measurement(observation_date, observation_result,
-                                return_method = "average"))
+  reframe(find_best_measurement(
+    observation_date,
+    observation_result,
+    return_method = "average"
+  ))
 
 # ---------------------------------------------------------------------------- #
 # Clean and Reshape BMI Data -------------------------------------------------
@@ -76,35 +83,47 @@ bmi_data_dup_clean_avg <- bmi_data_outliers %>%
 # Combine non-duplicate data with the cleaned duplicate measurements.
 # Reshape the data from long to wide format, calculate BMI, and compute time differences.
 bmi_data_clean <- bind_rows(
-  bmi_data_outliers %>% 
+  bmi_data_outliers %>%
     filter(!(fake_id %in% dup_id)) %>%
-    select(fake_id, index_date, dates = observation_date, test, 
-           values = observation_result), 
+    select(
+      fake_id,
+      index_date,
+      dates = observation_date,
+      test,
+      values = observation_result
+    ),
   bmi_data_dup_clean
 ) %>%
-  filter(test != "BMI") %>%     # Remove raw BMI entries; BMI is calculated
+  filter(test != "BMI") %>% # Remove raw BMI entries; BMI is calculated
   group_by(fake_id, index_date, dates) %>%
   pivot_wider(names_from = test, values_from = values) %>%
   filter(!is.na(weight)) %>%
   arrange(fake_id, dates) %>%
   group_by(fake_id, index_date) %>%
-  reframe(dates,
-          height = fix_height(height, dates),  # Adjust height using a custom function
-          weight = weight) %>%
+  reframe(
+    dates,
+    height = fix_height(height, dates), # Adjust height using a custom function
+    weight = weight
+  ) %>%
   mutate(
-    BMI = weight / (height/100)^2,  # Calculate BMI using the standard formula
+    BMI = weight / (height / 100)^2, # Calculate BMI using the standard formula
     time_from_index = as.numeric(difftime(dates, index_date, units = "days"))
-  ) %>% 
+  ) %>%
   drop_na() %>%
   left_join(df_raw %>% select(fake_id, sex, start_age = age)) %>%
   mutate(age = start_age + time_from_index / 365.25)
 
 # Create an alternate version of the cleaned BMI data using the average method for duplicates.
 bmi_data_clean_avg <- bind_rows(
-  bmi_data_outliers %>% 
+  bmi_data_outliers %>%
     filter(!(fake_id %in% dup_id)) %>%
-    select(fake_id, index_date, dates = observation_date, test, 
-           values = observation_result), 
+    select(
+      fake_id,
+      index_date,
+      dates = observation_date,
+      test,
+      values = observation_result
+    ),
   bmi_data_dup_clean_avg
 ) %>%
   filter(test != "BMI") %>%
@@ -113,13 +132,11 @@ bmi_data_clean_avg <- bind_rows(
   filter(!is.na(weight)) %>%
   arrange(fake_id, dates) %>%
   group_by(fake_id, index_date) %>%
-  reframe(dates,
-          height = fix_height(height, dates),
-          weight = weight) %>%
+  reframe(dates, height = fix_height(height, dates), weight = weight) %>%
   mutate(
-    BMI = weight / (height/100)^2,
-    time_from_index = as.numeric(difftime(dates, index_date, units = "days"))  # Convert days to years
-  ) %>% 
+    BMI = weight / (height / 100)^2,
+    time_from_index = as.numeric(difftime(dates, index_date, units = "days")) # Convert days to years
+  ) %>%
   drop_na()
 
 # ---------------------------------------------------------------------------- #
@@ -129,25 +146,39 @@ bmi_data_clean_avg <- bind_rows(
 # Calculate standard deviation scores (SDS) for height, weight, and BMI.
 # Summarize data by year (up to 5 years from index_date).
 sum_bmi <- bmi_data_clean %>%
-  filter(time_from_index > - 366,
-         time_from_index < 2191) %>%
+  filter(time_from_index > -366, time_from_index < 2191) %>%
   mutate(
-    height_sds = sds(height, age = age,
-                     sex = sex, male = "Male",
-                     female = "Female", ref = cdc.ref,
-                     item = "height2_20", 
-                     type = "SDS"),
-    weight_sds = sds(weight, age = age,
-                     sex = sex, male = "Male",
-                     female = "Female", ref = cdc.ref,
-                     item = "weight2_20", 
-                     type = "SDS"),
-    bmi_sds = sds(BMI, age = age,
-                  sex = sex, male = "Male",
-                  female = "Female", ref = cdc.ref,
-                  item = "bmi", 
-                  type = "SDS")
-  ) %>% 
+    height_sds = sds(
+      height,
+      age = age,
+      sex = sex,
+      male = "Male",
+      female = "Female",
+      ref = cdc.ref,
+      item = "height2_20",
+      type = "SDS"
+    ),
+    weight_sds = sds(
+      weight,
+      age = age,
+      sex = sex,
+      male = "Male",
+      female = "Female",
+      ref = cdc.ref,
+      item = "weight2_20",
+      type = "SDS"
+    ),
+    bmi_sds = sds(
+      BMI,
+      age = age,
+      sex = sex,
+      male = "Male",
+      female = "Female",
+      ref = cdc.ref,
+      item = "bmi",
+      type = "SDS"
+    )
+  ) %>%
   select(-c(age, start_age)) %>%
   mutate(year_from_index = ceiling(time_from_index / 365.25)) %>%
   group_by(fake_id, year = year_from_index) %>%
@@ -171,7 +202,7 @@ sum_bmi <- bmi_data_clean %>%
 # Process Labs Follow-Up Data ------------------------------------------------
 # ---------------------------------------------------------------------------- #
 
-# Prepare lab follow-up data by reshaping pre-index lab data and merging with 
+# Prepare lab follow-up data by reshaping pre-index lab data and merging with
 # post-index average lab data. The pre-index lab data is filtered to a one-year
 # window (0 to 365 days from index_date).
 
@@ -180,15 +211,16 @@ right_join(
     select(fake_id, index_date, contains("before_index")) %>%
     select(-anti_depress_drugs_before_index) %>%
     pivot_longer(
-      cols = -c(fake_id, index_date),  # Exclude fake_id and index_date from reshaping
-      names_to = c("test_name", ".value"),  # Split column names into test_name and .value
-      names_sep = "_last_sample_"  # Use the separator to split column names
+      cols = -c(fake_id, index_date), # Exclude fake_id and index_date from reshaping
+      names_to = c("test_name", ".value"), # Split column names into test_name and .value
+      names_sep = "_last_sample_" # Use the separator to split column names
     ) %>%
     mutate(diff = as.numeric(index_date - date_before_index)) %>%
     filter(
-      !is.na(date_before_index), 
+      !is.na(date_before_index),
       !is.na(result_before_index),
-      diff >= 0, diff <= 365
+      diff >= 0,
+      diff <= 365
     ) %>%
     select(fake_id, test_name, result_before_index) %>%
     pivot_wider(
@@ -196,28 +228,28 @@ right_join(
       values_from = result_before_index,
       names_glue = "{test_name}_0"
     ) %>%
-    select(fake_id, contains("_0")), 
+    select(fake_id, contains("_0")),
   df_raw %>%
     select(fake_id, contains("avg")) %>%
     select(-contains("_25")) %>%
     rename_with(
-      ~ str_remove_all(., "avg_value_of_|_in_|_year_from_index") %>%  # Remove unwanted parts
-        gsub("1st", "_1", .) %>%                          # Convert "1st" to "1"
-        gsub("2nd", "_2", .) %>%                          # Convert "2nd" to "2"
-        gsub("3rd", "_3", .) %>%                          # Convert "3rd" to "3"
-        gsub("4th", "_4", .) %>%                          # Convert "4th" to "4"
-        gsub("5th", "_5", .),                             # Convert "5th" to "5"
-      starts_with("avg_value_of_")                         # Apply only to relevant columns
-    ), 
+      ~ str_remove_all(., "avg_value_of_|_in_|_year_from_index") %>% # Remove unwanted parts
+        gsub("1st", "_1", .) %>% # Convert "1st" to "1"
+        gsub("2nd", "_2", .) %>% # Convert "2nd" to "2"
+        gsub("3rd", "_3", .) %>% # Convert "3rd" to "3"
+        gsub("4th", "_4", .) %>% # Convert "4th" to "4"
+        gsub("5th", "_5", .), # Convert "5th" to "5"
+      starts_with("avg_value_of_") # Apply only to relevant columns
+    ),
   by = "fake_id"
 ) -> labs_raw
 
 # Reshape the labs data from wide to long format.
 labs <- labs_raw %>%
   pivot_longer(
-    cols = matches("_(0|1|2|3|4|5)$"),  # Select columns ending with _0, _1, ..., _5
+    cols = matches("_(0|1|2|3|4|5)$"), # Select columns ending with _0, _1, ..., _5
     names_to = c("test", "year"),
-    names_pattern = "(.+)_([0-9]+)$",  # Use regex to extract test name and year
+    names_pattern = "(.+)_([0-9]+)$", # Use regex to extract test name and year
     values_to = "value"
   ) %>%
   mutate(year = as.integer(year)) %>%
@@ -229,38 +261,47 @@ labs <- labs_raw %>%
 
 # Identify cohort IDs where baseline (year 0) BMI is at least 40.
 cohort_ids <- sum_bmi %>%
-  filter(year == 0,
-         test == "bmi",
-         value >= 40) %>%
+  filter(year == 0, test == "bmi", value >= 40) %>%
   pull(fake_id)
 
-# Create a final long-format dataset by merging demographic and clinical data with 
+# Create a final long-format dataset by merging demographic and clinical data with
 # BMI summary and labs follow-up data.
 final_df_long <- df_raw %>%
   select(
-    index_year, fake_id, group,
-    age, sex, ses, sector, periphery, dm2,
-    pre_dm, htn, lipid, hyperlipidemia_5, 
-    anti_depress_drugs_before_index, anti_depress_drugs_after_index,
+    index_year,
+    fake_id,
+    group,
+    age,
+    sex,
+    ses,
+    sector,
+    periphery,
+    dm2,
+    pre_dm,
+    htn,
+    lipid,
+    hyperlipidemia_5,
+    anti_depress_drugs_before_index,
+    anti_depress_drugs_after_index,
     repeated_surgery_after_index
     # Additional lab columns are commented out below
-    # folic_acid_start = folic_acid_last_sample_result_before_index, 
-    # folic_acid_end = avg_value_of_folic_acid_in_5th_year_from_index, 
-    # folic_acid_diff, 
+    # folic_acid_start = folic_acid_last_sample_result_before_index,
+    # folic_acid_end = avg_value_of_folic_acid_in_5th_year_from_index,
+    # folic_acid_diff,
     # hemoglobin_start = hemoglobin_last_sample_result_before_index,
-    # hemoglobin_end = avg_value_of_hemoglobin_in_5th_year_from_index, 
-    # hemoglobin_diff, 
+    # hemoglobin_end = avg_value_of_hemoglobin_in_5th_year_from_index,
+    # hemoglobin_diff,
     # tsh_start = tsh_last_sample_result_before_index,
     # tsh_end = avg_value_of_tsh_in_5th_year_from_index, tsh_diff,
     # vitamin_b12_start = vitamin_b12_last_sample_result_before_index,
-    # vitamin_b12_end = avg_value_of_vitamin_b12_in_5th_year_from_index, 
+    # vitamin_b12_end = avg_value_of_vitamin_b12_in_5th_year_from_index,
     # vitamin_b12_diff,
     # vitamin_d_start = vitamin_d_last_sample_result_before_index,
-    # vitamin_d_end = avg_value_of_vitamin_d_in_5th_year_from_index, 
+    # vitamin_d_end = avg_value_of_vitamin_d_in_5th_year_from_index,
     # vitamin_d_diff,
   ) %>%
   right_join(
-    bind_rows(sum_bmi, labs), 
+    bind_rows(sum_bmi, labs),
     by = "fake_id"
   ) %>%
   filter(fake_id %in% cohort_ids)
@@ -271,3 +312,9 @@ final_df_wide <- final_df_long %>%
     names_from = c(test, year),
     values_from = value
   )
+
+save(
+  final_df_long,
+  final_df_wide,
+  file = "data/final_data.RData"
+)
