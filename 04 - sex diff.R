@@ -4,29 +4,13 @@ library(lmerTest) # lmer() + Satterthwaite p-values
 library(rms) # rcs()
 library(sjPlot) # plot_model()
 library(patchwork) # wrap_plots()
+library(gtsummary)
+library(flextable)
+library(gt)
+source("00 - funcs.R")
 load("data/final_data.RData")
 
-# ── 1. Prepare a “look-up” table of tests and y-axis labels ───────────────
-tests_tbl <- tribble(
-  ~test,
-  ~label,
-  "height_sds",
-  "Height SDS",
-  "weight_sds",
-  "Weight SDS",
-  "bmi_sds",
-  "Body Mass Index SDS",
-  "hemoglobin",
-  "Hemoglobin",
-  "tsh",
-  "TSH",
-  "vitamin_b12",
-  "Vitamin B12",
-  "vitamin_d",
-  "Vitamin D"
-)
-
-# ── 2. Reusable objects ───────────────────────────────────────────────────
+# Helper functions -----
 base_formula <- value ~ rcs(year, 3) * sex + age + (1 | fake_id)
 
 fit_lmer <- function(tst) {
@@ -52,19 +36,156 @@ plot_pred <- function(mod, ylab) {
     theme(legend.position = "bottom")
 }
 
-# ── 3. Fit, plot, and combine in one pipe ────────────────────────────────
+# Fit the models --------------------------------------------------------------
+## Prepare a “look-up” table of tests and y-axis labels ----------------------
+tests_tbl <- tribble(
+  ~test,
+  ~label,
+  "height_sds",
+  "Height SDS",
+  "weight_sds",
+  "Weight SDS",
+  "bmi_sds",
+  "Body Mass Index SDS",
+  "hemoglobin",
+  "Hemoglobin",
+  "tsh",
+  "TSH",
+  "vitamin_b12",
+  "Vitamin B12",
+  "vitamin_d",
+  "Vitamin D"
+)
+
+## Fit the models -------------------------------------------------
 models <- tests_tbl %>%
   mutate(
     model = map(test, fit_lmer),
     plot = map2(model, label, plot_pred)
   )
-# ── 3. Combine all plots in one pipe ────────────────────────────────
 
-big_plot <-
-  models %>%
+# Tables ----------------------------------------------------------------------
+## Table 1 ----------------------------------------------------------------------
+tbl_1_sex <- final_df_long %>%
+  filter(group == "Case") %>%
+  group_by(fake_id) %>%
+  arrange(fake_id, year) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(-fake_id, -group, -year, -test, -value, -lipid) %>%
+  rename_all(function(x) sapply(x, label_get, USE.NAMES = FALSE)) %>%
+  tbl_summary(
+    by = label_get("sex"),
+    missing = "no",
+    type = list(
+      label_get("age") ~ 'continuous',
+      all_continuous() ~ 'continuous'
+    ),
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      c(label_get("index_year")) ~ "{median} ({p25}, {p75})"
+    )
+  ) %>%
+  add_n(statistic = "{N_miss} ({p_miss})") %>%
+  modify_header(n = "**Missing**") %>%
+  add_p()
+
+# Export Table 1 as a Word document
+tbl_1_sex %>%
+  as_flex_table() %>%
+  save_as_docx(path = file.path("export_sex", "tbl_1.docx"))
+
+## Table 2 ----------------------------------------------------------------------
+tbl_2_sex <- final_df_long %>%
+  filter(group == "Case", year == 0, test %in% tests_tbl$test) %>%
+  select(fake_id, sex, test, value) %>%
+  pivot_wider(names_from = test, values_from = value) %>%
+  select(-fake_id) %>%
+  rename_all(function(x) sapply(x, label_get, USE.NAMES = FALSE)) %>%
+  tbl_summary(
+    by = label_get("sex"),
+    missing = "no"
+  ) %>%
+  add_n(statistic = "{N_miss} ({p_miss})") %>%
+  modify_header(n = "**Missing**") %>%
+  add_p()
+
+tbl_2_sex %>%
+  as_flex_table() %>%
+  save_as_docx(path = file.path("export_sex", "tbl_2.docx"))
+
+## Supplementary Table 1 ------------------------------------------------
+# ---------------------------------------------------------------------------- #
+# Model Summary: Combine and Export Coefficients from All Models -------------
+# ---------------------------------------------------------------------------- #
+
+# List model names to summarize
+model_names <- c(
+  "height_sds",
+  "weight_sds",
+  "bmi_sds",
+  "hemoglobin",
+  "tsh",
+  "vitamin_b12",
+  "vitamin_d"
+)
+
+# Extract coefficients from each model into a list of tables
+model_tables <- map(
+  model_names,
+  ~ extract_coefficients(models[models$test == ., "model", drop = T][[1]], .)
+)
+
+# Merge all model coefficient tables into one combined table
+coef_table <- reduce(model_tables, left_join, by = "term") %>%
+  as_tibble()
+
+# Format the combined coefficient table using gt and add spanner labels
+coef_table_gt <- coef_table %>%
+  gt() %>%
+  tab_header(
+    title = "Summary of linear mixed models"
+  ) %>%
+  fmt_number(
+    columns = paste0(model_names, "_est"),
+    decimals = 2
+  ) %>%
+  cols_label(
+    ends_with("est") ~ "Beta",
+    ends_with("pval") ~ "p value"
+  ) %>%
+  tab_spanner(label = "Height SDS", columns = starts_with("height")) %>%
+  tab_spanner(label = "Weight SDS", columns = starts_with("weight")) %>%
+  tab_spanner(label = "BMI SDS", columns = starts_with("bmi")) %>%
+  tab_spanner(label = "Hemoglobin", columns = starts_with("hemoglobin")) %>%
+  tab_spanner(label = "TSH", columns = starts_with("tsh")) %>%
+  tab_spanner(label = "Vitamin B12", columns = starts_with("vitamin_b12")) %>%
+  tab_spanner(label = "Vitamin D", columns = starts_with("vitamin_d"))
+
+# Save the coefficient summary table as a DOCX file
+gtsave(
+  coef_table_gt,
+  file = file.path("export_sex", "coef_table.docx"),
+  to = "docx"
+)
+
+
+# Visualize all plots ---------------------------------------------------------
+fig_1_a <- models %>%
+  filter(test %in% c("height_sds", "weight_sds", "bmi_sds")) %>%
+  pull(plot) %>% # extract the list of ggplots
+  wrap_plots(ncol = 3, guides = "collect") & # “collect” = one shared legend
+  theme(legend.position = "none")
+
+fig_1_b <- models %>%
+  filter(!(test %in% c("height_sds", "weight_sds", "bmi_sds"))) %>%
   pull(plot) %>% # extract the list of ggplots
   wrap_plots(ncol = 2, guides = "collect") & # “collect” = one shared legend
   theme(legend.position = "bottom")
 
-# ── 4. Draw ───────────────────────────────────────────────────────────────
-big_plot
+fig_1 <- fig_1_a /
+  fig_1_b +
+  plot_layout(heights = c(1, 2)) + # fig_1_b gets 1.5x the height of fig_1_a
+  plot_annotation(tag_levels = "A")
+
+ggsave("export_sex/fig_1.pdf", fig_1, width = 15, height = 10, dpi = 900)
