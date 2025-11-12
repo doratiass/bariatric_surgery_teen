@@ -39,21 +39,21 @@ plot_pred <- function(mod, ylab) {
 # Fit the models --------------------------------------------------------------
 ## Prepare a “look-up” table of tests and y-axis labels ----------------------
 tests_tbl <- tribble(
-  ~test,
-  ~label,
-  "height_sds",
-  "Height SDS",
-  "weight_sds",
-  "Weight SDS",
-  "bmi_sds",
-  "Body Mass Index SDS",
-  "hemoglobin",
-  "Hemoglobin",
-  "tsh",
-  "TSH",
-  "vitamin_b12",
-  "Vitamin B12",
-  "vitamin_d",
+  ~test                 ,
+  ~label                ,
+  "height_sds"          ,
+  "Height SDS"          ,
+  "weight_sds"          ,
+  "Weight SDS"          ,
+  "bmi_sds"             ,
+  "Body Mass Index SDS" ,
+  "hemoglobin"          ,
+  "Hemoglobin"          ,
+  "tsh"                 ,
+  "TSH"                 ,
+  "vitamin_b12"         ,
+  "Vitamin B12"         ,
+  "vitamin_d"           ,
   "Vitamin D"
 )
 
@@ -174,13 +174,13 @@ gtsave(
 fig_1_a <- models %>%
   filter(test %in% c("height_sds", "weight_sds", "bmi_sds")) %>%
   pull(plot) %>% # extract the list of ggplots
-  wrap_plots(ncol = 3, guides = "collect") & # “collect” = one shared legend
+  wrap_plots(ncol = 3, guides = "collect") + # “collect” = one shared legend
   theme(legend.position = "none")
 
 fig_1_b <- models %>%
   filter(!(test %in% c("height_sds", "weight_sds", "bmi_sds"))) %>%
   pull(plot) %>% # extract the list of ggplots
-  wrap_plots(ncol = 2, guides = "collect") & # “collect” = one shared legend
+  wrap_plots(ncol = 2, guides = "collect") + # “collect” = one shared legend
   theme(legend.position = "bottom")
 
 fig_1 <- fig_1_a /

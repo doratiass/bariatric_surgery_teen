@@ -653,3 +653,71 @@ gtsave(
   file = file.path("export", "coef_table.docx"),
   to = "docx"
 )
+
+# Revision -------------------------------------------------------------------
+
+new_pal <- c(
+  "#0b5d44ff",
+  "#E6AB02",
+  #"#c76215ff",
+  "#a00f0fff"
+)
+
+bmi_cat_df <- final_df_long %>%
+  filter(test %in% c("bmi", "bmi_sds", "bmi_perc"), !is.na(value)) %>%
+  select(fake_id, group, year, test, value) %>%
+  pivot_wider(names_from = test, values_from = value) %>%
+  mutate(
+    bmi_cat = case_when(
+      #bmi_sds < 0.05 ~ "Underweight",
+      #bmi_sds < 0.85 ~ "Healthy weight",
+      bmi_sds < 0.95 ~ "Healthy weight + Overweight",
+      TRUE ~ "Obesity"
+    ),
+    # Optional refinement for Severe Obesity (if you have bmi_95th or bmi_perc etc.)
+    bmi_cat = factor(
+      if_else(
+        bmi >= 35 | bmi_perc >= 0.95 & bmi >= 1.2 * (bmi), # placeholder; replace if you have actual BMI_95th
+        "Severe obesity",
+        bmi_cat
+      ),
+      levels = c(
+        # "Healthy weight",
+        # "Overweight",
+        "Healthy weight + Overweight",
+        "Obesity",
+        "Severe obesity"
+      )
+    )
+  )
+
+bmi_cat_df %>%
+  ggplot(aes(x = year, fill = bmi_cat)) +
+  # geom_point(stat = "count") +
+  # geom_line(stat = "count") +
+  geom_bar(width = 0.5) +
+  scale_fill_brewer(palette = "Set1", direction = -1) +
+  #scale_fill_manual(values = new_pal) +
+  scale_x_continuous(breaks = seq(0, 5, by = 1)) +
+  facet_grid(group ~ .) +
+  labs(
+    x = "Year",
+    y = "Count",
+    fill = "BMI Category"
+  ) +
+  plot_theme
+
+ggsave(
+  file.path("export", "fig_bmi_cat.svg"),
+  last_plot(),
+  width = 30,
+  height = 20,
+  dpi = 300,
+  #background = "white",
+  units = "cm"
+)
+
+bmi_cat_df %>%
+  group_by(year, group, bmi_cat) %>%
+  summarize(n = n()) %>%
+  write_csv(file.path("export", "bmi_cat_counts.csv"))

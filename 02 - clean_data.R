@@ -177,6 +177,16 @@ sum_bmi <- bmi_data_clean %>%
       ref = cdc.ref,
       item = "bmi",
       type = "SDS"
+    ),
+    bmi_perc = sds(
+      BMI,
+      age = age,
+      sex = sex,
+      male = "Male",
+      female = "Female",
+      ref = cdc.ref,
+      item = "bmi",
+      type = "perc"
     )
   ) %>%
   select(-c(age, start_age)) %>%
@@ -187,13 +197,14 @@ sum_bmi <- bmi_data_clean %>%
     weight = mean(weight, na.rm = TRUE),
     height = mean(height, na.rm = TRUE),
     bmi_sds = mean(bmi_sds, na.rm = TRUE),
+    bmi_perc = mean(bmi_perc, na.rm = TRUE),
     weight_sds = mean(weight_sds, na.rm = TRUE),
     height_sds = mean(height_sds, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   filter(year < 6) %>%
   pivot_longer(
-    cols = c(bmi, weight, height, bmi_sds, weight_sds, height_sds),
+    cols = c(bmi, weight, height, bmi_sds, bmi_perc, weight_sds, height_sds),
     names_to = "test",
     values_to = "value"
   )
