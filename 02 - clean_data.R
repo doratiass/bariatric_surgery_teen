@@ -1,19 +1,23 @@
-# ---------------------------------------------------------------------------- #
-# Script: BMI Data Processing and Labs Follow-Up
-# Description: This script processes BMI data by removing outliers and duplicate
-#              measurements, reshaping the data, calculating BMI and standardized
-#              scores, and finally merging lab follow-up data to create the final
-#              long and wide datasets.
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Script: 02 - clean_data.R
+# Description: Clean and transform BMI and laboratory follow-up data into
+#              analysis-ready long and wide datasets for downstream modeling.
+# Inputs: data.csv (loaded as df_raw), bmi_data.csv (loaded as bmi_raw),
+#         utility functions in 00 - funcs.R.
+# Outputs: data/final_data.RData (final_df_long, final_df_wide).
+# Notes: Duplicate-handling methods ("closest" and "average") are both retained;
+#        the main analysis dataset uses the "closest" method as in the
+#        original workflow.
+# ============================================================================ #
 
 # Load required libraries and custom functions
 library(tidyverse)
 library(childsds)
 source("00 - funcs.R")
 
-# ---------------------------------------------------------------------------- #
-# Process BMI Data: Remove Outliers and Impossible Values --------------------
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Process BMI Data: Remove Outliers and Impossible Values ---------------------#
+# ============================================================================ #
 
 ## Remove outliers based on acceptable ranges for each measurement type.
 ## Reference links:
@@ -49,9 +53,9 @@ bmi_data_outliers %>%
   geom_boxplot() +
   facet_wrap(. ~ test, scales = "free")
 
-# ---------------------------------------------------------------------------- #
-# Remove Duplicate Measurements and Find Best Measurement --------------------
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Remove Duplicate Measurements and Find Best Measurement ---------------------#
+# ============================================================================ #
 
 # Identify duplicate measurements based on fake_id, test, and observation_date.
 bmi_data_outliers %>%
@@ -77,71 +81,55 @@ bmi_data_dup_clean_avg <- bmi_data_outliers %>%
   ))
 
 # ---------------------------------------------------------------------------- #
-# Clean and Reshape BMI Data -------------------------------------------------
+## Helper: Build cleaned BMI panel from a duplicate-resolution table ----------#
 # ---------------------------------------------------------------------------- #
+build_bmi_panel <- function(dup_clean_tbl) {
+  bind_rows(
+    bmi_data_outliers %>%
+      filter(!(fake_id %in% dup_id)) %>%
+      select(
+        fake_id,
+        index_date,
+        dates = observation_date,
+        test,
+        values = observation_result
+      ),
+    dup_clean_tbl
+  ) %>%
+    filter(test != "BMI") %>% # Remove raw BMI values; BMI is recomputed
+    group_by(fake_id, index_date, dates) %>%
+    pivot_wider(names_from = test, values_from = values) %>%
+    filter(!is.na(weight)) %>%
+    arrange(fake_id, dates) %>%
+    group_by(fake_id, index_date) %>%
+    reframe(
+      dates,
+      height = fix_height(height, dates),
+      weight = weight
+    ) %>%
+    mutate(
+      BMI = weight / (height / 100)^2,
+      time_from_index = as.numeric(difftime(dates, index_date, units = "days"))
+    ) %>%
+    drop_na()
+}
+
+# ============================================================================ #
+# Clean and Reshape BMI Data --------------------------------------------------#
+# ============================================================================ #
 
 # Combine non-duplicate data with the cleaned duplicate measurements.
 # Reshape the data from long to wide format, calculate BMI, and compute time differences.
-bmi_data_clean <- bind_rows(
-  bmi_data_outliers %>%
-    filter(!(fake_id %in% dup_id)) %>%
-    select(
-      fake_id,
-      index_date,
-      dates = observation_date,
-      test,
-      values = observation_result
-    ),
-  bmi_data_dup_clean
-) %>%
-  filter(test != "BMI") %>% # Remove raw BMI entries; BMI is calculated
-  group_by(fake_id, index_date, dates) %>%
-  pivot_wider(names_from = test, values_from = values) %>%
-  filter(!is.na(weight)) %>%
-  arrange(fake_id, dates) %>%
-  group_by(fake_id, index_date) %>%
-  reframe(
-    dates,
-    height = fix_height(height, dates), # Adjust height using a custom function
-    weight = weight
-  ) %>%
-  mutate(
-    BMI = weight / (height / 100)^2, # Calculate BMI using the standard formula
-    time_from_index = as.numeric(difftime(dates, index_date, units = "days"))
-  ) %>%
-  drop_na() %>%
+bmi_data_clean <- build_bmi_panel(bmi_data_dup_clean) %>%
   left_join(df_raw %>% select(fake_id, sex, start_age = age)) %>%
   mutate(age = start_age + time_from_index / 365.25)
 
 # Create an alternate version of the cleaned BMI data using the average method for duplicates.
-bmi_data_clean_avg <- bind_rows(
-  bmi_data_outliers %>%
-    filter(!(fake_id %in% dup_id)) %>%
-    select(
-      fake_id,
-      index_date,
-      dates = observation_date,
-      test,
-      values = observation_result
-    ),
-  bmi_data_dup_clean_avg
-) %>%
-  filter(test != "BMI") %>%
-  group_by(fake_id, index_date, dates) %>%
-  pivot_wider(names_from = test, values_from = values) %>%
-  filter(!is.na(weight)) %>%
-  arrange(fake_id, dates) %>%
-  group_by(fake_id, index_date) %>%
-  reframe(dates, height = fix_height(height, dates), weight = weight) %>%
-  mutate(
-    BMI = weight / (height / 100)^2,
-    time_from_index = as.numeric(difftime(dates, index_date, units = "days")) # Convert days to years
-  ) %>%
-  drop_na()
+bmi_data_clean_avg <- build_bmi_panel(bmi_data_dup_clean_avg)
 
-# ---------------------------------------------------------------------------- #
-# Summarize BMI Data Over Time -----------------------------------------------
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Summarize BMI Data Over Time ------------------------------------------------#
+# ============================================================================ #
 
 # Calculate standard deviation scores (SDS) for height, weight, and BMI.
 # Summarize data by year (up to 5 years from index_date).
@@ -209,9 +197,9 @@ sum_bmi <- bmi_data_clean %>%
     values_to = "value"
   )
 
-# ---------------------------------------------------------------------------- #
-# Process Labs Follow-Up Data ------------------------------------------------
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Process Labs Follow-Up Data -------------------------------------------------#
+# ============================================================================ #
 
 # Prepare lab follow-up data by reshaping pre-index lab data and merging with
 # post-index average lab data. The pre-index lab data is filtered to a one-year
@@ -266,9 +254,9 @@ labs <- labs_raw %>%
   mutate(year = as.integer(year)) %>%
   drop_na(value)
 
-# ---------------------------------------------------------------------------- #
-# Create Final Datasets ------------------------------------------------------
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Create Final Datasets -------------------------------------------------------#
+# ============================================================================ #
 
 # Identify cohort IDs where baseline (year 0) BMI is at least 40.
 cohort_ids <- sum_bmi %>%
