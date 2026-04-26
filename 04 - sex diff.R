@@ -41,10 +41,16 @@ plot_pred <- function(mod, ylab) {
 tests_tbl <- tribble(
   ~test                 ,
   ~label                ,
+  "height"              ,
+  "Height"              ,
   "height_sds"          ,
   "Height SDS"          ,
+  "weight"              ,
+  "Weight"              ,
   "weight_sds"          ,
   "Weight SDS"          ,
+  "bmi"                 ,
+  "Body Mass Index"     ,
   "bmi_sds"             ,
   "Body Mass Index SDS" ,
   "hemoglobin"          ,
@@ -61,7 +67,12 @@ tests_tbl <- tribble(
 models <- tests_tbl %>%
   mutate(
     model = map(test, fit_lmer),
-    plot = map2(model, label, plot_pred)
+    plot = map2(model, label, plot_pred),
+    test = ifelse(
+      test %in% c("height", "weight", "bmi"),
+      paste0(test, "_nds"),
+      test
+    )
   )
 
 # Tables ----------------------------------------------------------------------
@@ -121,6 +132,9 @@ tbl_2_sex %>%
 
 # List model names to summarize
 model_names <- c(
+  "height_nds",
+  "weight_nds",
+  "bmi_nds",
   "height_sds",
   "weight_sds",
   "bmi_sds",
@@ -154,9 +168,12 @@ coef_table_gt <- coef_table %>%
     ends_with("est") ~ "Beta",
     ends_with("pval") ~ "p value"
   ) %>%
-  tab_spanner(label = "Height SDS", columns = starts_with("height")) %>%
-  tab_spanner(label = "Weight SDS", columns = starts_with("weight")) %>%
-  tab_spanner(label = "BMI SDS", columns = starts_with("bmi")) %>%
+  tab_spanner(label = "Height", columns = starts_with("height_nds")) %>%
+  tab_spanner(label = "Weight", columns = starts_with("weight_nds")) %>%
+  tab_spanner(label = "BMI", columns = starts_with("bmi_nds")) %>%
+  tab_spanner(label = "Height SDS", columns = starts_with("height_sds")) %>%
+  tab_spanner(label = "Weight SDS", columns = starts_with("weight_sds")) %>%
+  tab_spanner(label = "BMI SDS", columns = starts_with("bmi_sds")) %>%
   tab_spanner(label = "Hemoglobin", columns = starts_with("hemoglobin")) %>%
   tab_spanner(label = "TSH", columns = starts_with("tsh")) %>%
   tab_spanner(label = "Vitamin B12", columns = starts_with("vitamin_b12")) %>%
@@ -178,7 +195,17 @@ fig_1_a <- models %>%
   theme(legend.position = "none")
 
 fig_1_b <- models %>%
-  filter(!(test %in% c("height_sds", "weight_sds", "bmi_sds"))) %>%
+  filter(
+    !(test %in%
+      c(
+        "height_sds",
+        "weight_sds",
+        "bmi_sds",
+        "height_nds",
+        "weight_nds",
+        "bmi_nds"
+      ))
+  ) %>%
   pull(plot) %>% # extract the list of ggplots
   wrap_plots(ncol = 2, guides = "collect") + # “collect” = one shared legend
   theme(legend.position = "bottom")
@@ -189,3 +216,21 @@ fig_1 <- fig_1_a /
   plot_annotation(tag_levels = "A")
 
 ggsave("export_sex/fig_1.pdf", fig_1, width = 15, height = 10, dpi = 900)
+
+library(patchwork)
+
+# create patchwork and set shared legend + theme via plot_annotation
+fig_1_nds <- models %>%
+  filter(test %in% c("height_nds", "weight_nds", "bmi_nds")) %>%
+  pull(plot) %>%
+  wrap_plots(ncol = 3) +
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A", theme = theme(legend.position = "bottom"))
+
+ggsave(
+  "export_sex/fig_1_nds.pdf",
+  fig_1_nds,
+  width = 15,
+  height = 10,
+  dpi = 900
+)

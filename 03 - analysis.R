@@ -12,6 +12,7 @@ library(gtsummary)
 library(flextable)
 library(lmerTest)
 library(performance)
+library(gt)
 source("00 - funcs.R")
 load("data/final_data.RData")
 # ---------------------------------------------------------------------------- #
