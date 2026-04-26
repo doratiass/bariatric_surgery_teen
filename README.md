@@ -57,17 +57,9 @@ In the current repository state, outcomes are longitudinal anthropometric and la
    Remove implausible outliers, reconcile duplicate measurements, reshape to analysis structures.
 3. **Missing data handling** (`00 - funcs.R`, `02 - clean_data.R`)  
    Explicit NA filtering and height trajectory correction/imputation rules.
-4. **Train/test split and cross-validation**  
-   Not implemented in current scripts (workflow is longitudinal mixed-effects rather than ML train/test evaluation).
-5. **Logistic regression**  
-   Not implemented in current scripts.
-6. **LASSO logistic regression**  
-   Not implemented in current scripts.
-7. **XGBoost classification**  
-   Not implemented in current scripts.
-8. **Model evaluation** (`03 - analysis.R`, `04 - sex diff.R`)  
+4. **Model evaluation** (`03 - analysis.R`, `04 - sex diff.R`)  
    Descriptive tables, p-values, coefficient summaries, and visual diagnostics of model predictions.
-9. **Saving model objects/results**  
+5. **Saving model objects/results**  
    Save final datasets to `data/final_data.RData`; export tables/figures to `export/` and `export_sex/`.
 
 ## Packages used (grouped by purpose)
