@@ -1,9 +1,12 @@
-# ---------------------------------------------------------------------------- #
-# Script: Data Cleaning and Transformation
-# Description: This script loads two datasets from the clipboard, cleans column
-#              names, transforms date and numeric columns, recodes categorical
-#              variables, and computes difference variables for various lab tests.
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Script: 01 - import_data.R
+# Description: Import source data files and perform initial harmonization of
+#              dates, numerics, and key demographic/clinical variables.
+# Inputs: data/data.csv, data/bmi_data.csv.
+# Outputs: In-memory cleaned objects: df_raw and bmi_raw.
+# Notes: Variable recoding follows the original project definitions and keeps
+#        downstream object names unchanged.
+# ============================================================================ #
 
 # Load required libraries
 library(tidyverse)

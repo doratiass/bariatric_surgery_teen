@@ -1,10 +1,13 @@
-# ---------------------------------------------------------------------------- #
-# Script: Descriptive Statistics, Visualizations, and Predictive Models
-# Description: This script generates descriptive statistics tables using gtsummary,
-#              visualizes BMI and laboratory follow-up data over time, and fits
-#              multiple linear mixed-effects models. The results are exported as
-#              DOCX and JPEG files.
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Script: 03 - analysis.R
+# Description: Generate descriptive tables, longitudinal visualizations, and
+#              linear mixed-effects model summaries for the surgery vs control
+#              cohort analysis.
+# Inputs: data/final_data.RData, helper functions in 00 - funcs.R.
+# Outputs: Tables and figures under export/ (DOCX, JPEG), coefficient summary.
+# Notes: Model formulas, outcome definitions, and time-window restrictions are
+#        preserved from the original analysis pipeline.
+# ============================================================================ #
 
 # Load required libraries and custom functions
 library(tidyverse)
@@ -15,6 +18,29 @@ library(performance)
 library(gt)
 source("00 - funcs.R")
 load("data/final_data.RData")
+
+# ---------------------------------------------------------------------------- #
+## Helper Functions -----------------------------------------------------------#
+# ---------------------------------------------------------------------------- #
+
+save_last_plot_jpeg <- function(path, width = 30, height = 15, dpi = 300) {
+  ggsave(
+    file.path("export", path),
+    last_plot(),
+    width = width,
+    height = height,
+    dpi = dpi,
+    background = "white",
+    units = "cm"
+  )
+}
+
+fit_lme_model <- function(test_name, year_filter = TRUE) {
+  final_df_long %>%
+    mutate(group = relevel(group, "Control")) %>%
+    filter(test == test_name, {{ year_filter }}) %>%
+    lmer(value ~ year * group + sex + age + (1 | fake_id), data = .)
+}
 # ---------------------------------------------------------------------------- #
 # Variable Definitions -------------------------------------------------------
 # ---------------------------------------------------------------------------- #
@@ -43,9 +69,9 @@ tbl_1_vars <- c(
   "hyperlipidemia_5"
 )
 
-# ---------------------------------------------------------------------------- #
-# Descriptive Statistics -----------------------------------------------------
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Descriptive Statistics ------------------------------------------------------#
+# ============================================================================ #
 ## Table 1: Baseline Characteristics by Group ---------------------------------
 final_df_wide %>%
   select(group, all_of(tbl_1_vars)) %>%
@@ -153,9 +179,9 @@ tbl_2 %>%
   as_flex_table() %>%
   save_as_docx(path = file.path("export", "tbl_2.docx"))
 
-# ---------------------------------------------------------------------------- #
-# Plots ----------------------------------------------------------------------
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Plots -----------------------------------------------------------------------#
+# ============================================================================ #
 
 # Define color palette and custom theme for all plots
 col_pal <- "Dark2"
@@ -334,17 +360,12 @@ ggsave(
   units = "cm"
 )
 
-# ---------------------------------------------------------------------------- #
-# Predictive Models: Linear Mixed-Effects Models -----------------------------
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Predictive Models: Linear Mixed-Effects Models ------------------------------#
+# ============================================================================ #
 ## Height Model -------------------------------------------------------------
 # Fit a linear mixed-effects model for height SDS
-height_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "height_sds")
-)
+height_model <- fit_lme_model("height_sds")
 
 # Extract coefficients for the height model
 height_coefs <- extract_coefficients(height_model, "height_sds")
@@ -353,24 +374,11 @@ height_coefs <- extract_coefficients(height_model, "height_sds")
 visualize_lme_model(height_model, "Height SDS")
 
 # Save the height model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_lme_height.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_lme_height.jpeg")
 
 ## Weight Model (0-2 Years) -------------------------------------------------
 # Fit a linear mixed-effects model for weight SDS for years <= 2
-weight_0_2_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "weight_sds", year <= 2)
-)
+weight_0_2_model <- fit_lme_model("weight_sds", year <= 2)
 
 # Extract coefficients for the weight 0-2 model
 weight_0_2_coefs <- extract_coefficients(weight_0_2_model, "weight_sds")
@@ -379,24 +387,11 @@ weight_0_2_coefs <- extract_coefficients(weight_0_2_model, "weight_sds")
 visualize_lme_model(weight_0_2_model, "Weight SDS 0-2", max_year = 2)
 
 # Save the weight 0-2 model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_lme_weight_0_2.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_lme_weight_0_2.jpeg")
 
 ## Weight Model (2-5 Years) -------------------------------------------------
 # Fit a linear mixed-effects model for weight SDS for years >= 2
-weight_2_5_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "weight_sds", year >= 2)
-)
+weight_2_5_model <- fit_lme_model("weight_sds", year >= 2)
 
 # Extract coefficients for the weight 2-5 model
 weight_2_5_coefs <- extract_coefficients(weight_2_5_model, "weight_sds")
@@ -405,24 +400,11 @@ weight_2_5_coefs <- extract_coefficients(weight_2_5_model, "weight_sds")
 visualize_lme_model(weight_2_5_model, "Weight SDS 2-5", min_year = 2)
 
 # Save the weight 2-5 model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_lme_weight_2_5.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_lme_weight_2_5.jpeg")
 
 ## BMI Model (0-2 Years) ----------------------------------------------------
 # Fit a linear mixed-effects model for BMI SDS for years <= 2
-bmi_0_2_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "bmi_sds", year <= 2)
-)
+bmi_0_2_model <- fit_lme_model("bmi_sds", year <= 2)
 
 # Extract coefficients for the BMI 0-2 model
 bmi_0_2_coefs <- extract_coefficients(bmi_0_2_model, "bmi_sds")
@@ -431,24 +413,11 @@ bmi_0_2_coefs <- extract_coefficients(bmi_0_2_model, "bmi_sds")
 visualize_lme_model(bmi_0_2_model, "BMI SDS", max_year = 2)
 
 # Save the BMI 0-2 model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_lme_bmi_0_2.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_lme_bmi_0_2.jpeg")
 
 ## BMI Model (2-5 Years) ----------------------------------------------------
 # Fit a linear mixed-effects model for BMI SDS for years >= 2
-bmi_2_5_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "bmi_sds", year >= 2)
-)
+bmi_2_5_model <- fit_lme_model("bmi_sds", year >= 2)
 
 # Extract coefficients for the BMI 2-5 model
 bmi_2_5_coefs <- extract_coefficients(bmi_2_5_model, "bmi_sds")
@@ -457,24 +426,11 @@ bmi_2_5_coefs <- extract_coefficients(bmi_2_5_model, "bmi_sds")
 visualize_lme_model(bmi_2_5_model, "BMI SDS", min_year = 2)
 
 # Save the BMI 2-5 model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_lme_bmi_2_5.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_lme_bmi_2_5.jpeg")
 
 ## Hemoglobin Model ---------------------------------------------------------
 # Fit a linear mixed-effects model for hemoglobin
-hemoglobin_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "hemoglobin")
-)
+hemoglobin_model <- fit_lme_model("hemoglobin")
 
 # Extract coefficients for the hemoglobin model
 hemoglobin_coefs <- extract_coefficients(hemoglobin_model, "hemoglobin")
@@ -483,24 +439,11 @@ hemoglobin_coefs <- extract_coefficients(hemoglobin_model, "hemoglobin")
 visualize_lme_model(hemoglobin_model, "Hemoglobin")
 
 # Save the hemoglobin model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_lme_hem.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_lme_hem.jpeg")
 
 ## TSH Model --------------------------------------------------------------
 # Fit a linear mixed-effects model for TSH
-tsh_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "tsh")
-)
+tsh_model <- fit_lme_model("tsh")
 
 # Extract coefficients for the TSH model
 tsh_coefs <- extract_coefficients(tsh_model, "tsh")
@@ -509,24 +452,11 @@ tsh_coefs <- extract_coefficients(tsh_model, "tsh")
 visualize_lme_model(tsh_model, "TSH")
 
 # Save the TSH model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_tsh.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_tsh.jpeg")
 
 ## Vitamin B12 Model -------------------------------------------------------
 # Fit a linear mixed-effects model for Vitamin B12
-vitamin_b12_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "vitamin_b12")
-)
+vitamin_b12_model <- fit_lme_model("vitamin_b12")
 
 # Extract coefficients for the Vitamin B12 model
 vitamin_b12_coefs <- extract_coefficients(vitamin_b12_model, "vitamin_b12")
@@ -535,24 +465,11 @@ vitamin_b12_coefs <- extract_coefficients(vitamin_b12_model, "vitamin_b12")
 visualize_lme_model(vitamin_b12_model, "Vitamin B12")
 
 # Save the Vitamin B12 model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_lme_b12.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_lme_b12.jpeg")
 
 ## Folic Acid Model --------------------------------------------------------
 # Fit a linear mixed-effects model for folic acid
-folic_acid_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "folic_acid")
-)
+folic_acid_model <- fit_lme_model("folic_acid")
 
 # Extract coefficients for the folic acid model
 folic_acid_coefs <- extract_coefficients(folic_acid_model, "folic_acid")
@@ -561,24 +478,11 @@ folic_acid_coefs <- extract_coefficients(folic_acid_model, "folic_acid")
 visualize_lme_model(folic_acid_model, "Folic Acid")
 
 # Save the folic acid model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_lme_folic.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_lme_folic.jpeg")
 
 ## Vitamin D Model ---------------------------------------------------------
 # Fit a linear mixed-effects model for Vitamin D
-vitamin_d_model <- lmer(
-  value ~ year * group + sex + age + (1 | fake_id),
-  data = final_df_long %>%
-    mutate(group = relevel(group, "Control")) %>%
-    filter(test == "vitamin_d")
-)
+vitamin_d_model <- fit_lme_model("vitamin_d")
 
 # Extract coefficients for the Vitamin D model
 vitamin_d_coefs <- extract_coefficients(vitamin_d_model, "vitamin_d")
@@ -587,15 +491,7 @@ vitamin_d_coefs <- extract_coefficients(vitamin_d_model, "vitamin_d")
 visualize_lme_model(vitamin_d_model, "Vitamin D")
 
 # Save the Vitamin D model plot as a JPEG file
-ggsave(
-  file.path("export", "fig_lme_vit_d.jpeg"),
-  last_plot(),
-  width = 30,
-  height = 15,
-  dpi = 300,
-  background = "white",
-  units = "cm"
-)
+save_last_plot_jpeg("fig_lme_vit_d.jpeg")
 
 # ---------------------------------------------------------------------------- #
 # Model Summary: Combine and Export Coefficients from All Models -------------

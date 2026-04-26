@@ -1,108 +1,121 @@
-# Bariatric Surgery Outcomes in Adolescents
+# Bariatric Surgery Outcomes in Adolescents: Longitudinal Clinical Data Pipeline
 
-*Long-term nutritional and anthropometric outcomes after adolescent bariatric surgery*
+## Project overview
+This repository appears to implement a longitudinal epidemiologic analysis pipeline for adolescents with severe obesity, comparing participants who underwent bariatric surgery with matched/eligible controls managed without surgery. The code defines an end-to-end workflow for importing clinical data, cleaning repeated anthropometric and laboratory measurements, constructing longitudinal analysis tables, and fitting mixed-effects models.
 
-## About this repository
-This repository contains the R analysis workflow for a retrospective cohort study of adolescents with severe obesity. The study compares:
+The analytical focus in the current scripts is on 5-year follow-up trajectories for anthropometric and nutritional/laboratory outcomes.
 
-- **Surgery group:** adolescents who underwent bariatric surgery before age 18.
-- **Control group:** adolescents with severe obesity managed with structured lifestyle modification.
+## Scientific background (inferred from code)
+Based on the scripts, the analysis pipeline is designed to evaluate post-index changes in:
+- Anthropometrics (height, weight, BMI, SDS-derived growth measures)
+- Laboratory indicators (e.g., hemoglobin, folic acid, vitamin B12, vitamin D, TSH)
 
-The analysis focuses on trajectories over a **5-year follow-up**, including anthropometric outcomes and laboratory biomarkers.
+The code structure suggests a retrospective cohort design with repeated measurements per participant and longitudinal modeling to compare temporal trajectories between groups.
 
-## Publication
-This study has been published:
+## Researcher / analyst role
+This repository is documented from the perspective of the **data scientist / analyst** responsible for:
+- Data ingestion and transformation
+- Analytical dataset construction
+- Statistical model implementation
+- Computational reproducibility and reporting outputs
 
-- **Obesity Surgery (2026)**  
-  https://doi.org/10.1007/s11695-026-08521-8
-
-## My role
-I am the **analyst** for this study and repository.
-
-## Study outcomes covered in the code
-### Anthropometric outcomes
-- Weight
-- Body Mass Index (BMI)
-- BMI Standard Deviation Score (BMI-SDS)
-- Additional SDS measures for growth-related interpretation
-
-### Nutritional / laboratory outcomes
-- Hemoglobin
-- Thyroid-stimulating hormone (TSH)
-- Vitamin D
-- Folic acid
-- Vitamin B12
+This role description does **not** imply Principal Investigator (PI) status.
 
 ## Repository structure
-- `00-func.R`  
-  Utility/helper functions used across the project, including:
-  - continuous-variable diagnostics (`check_cont`)
-  - duplicate-measurement handling (`find_best_measurement`)
-  - height correction/imputation (`fix_height`)
-  - variable labeling helpers (`label_get`, `vars_label`, `var_get`)
-  - model coefficient extraction (`extract_coefficients`)
-  - mixed-model visualization (`visualize_lme_model`)
+- `00 - funcs.R`  
+  Shared helper functions for diagnostics, duplicate resolution, variable labeling, model coefficient extraction, and mixed-model visualization.
+- `01 - import_data.R`  
+  Data import and initial harmonization (names, dates, numeric conversion, recoding).
+- `02 - clean_data.R`  
+  Longitudinal BMI/lab cleaning, duplicate handling, SDS derivation, and construction of final long/wide analytical datasets.
+- `03 - analysis.R`  
+  Descriptive summaries, longitudinal plots, and mixed-effects model fitting/export.
+- `04 - sex diff.R`  
+  Sex-stratified mixed-model workflow and reporting exports.
+- `data/` (expected, not versioned here)  
+  Input CSV files and saved `.RData` objects.
+- `export/`, `export_sex/` (generated)  
+  Tables and figures exported by scripts.
 
-- `01-import_data.R`  
-  Data import and initial cleaning:
-  - standardization of column names
-  - date parsing
-  - recoding of key variables
-  - preparation of derived laboratory differences
+## Data description (inferred from variable usage)
+The pipeline appears to use variables from multiple domains:
+- **Demographics / social**: age, sex, sector, socioeconomic status, periphery
+- **Clinical comorbidities / treatment context**: diabetes, pre-diabetes, hypertension, hyperlipidemia, antidepressant exposure, repeat surgery indicator
+- **Anthropometrics**: repeated height/weight/BMI and SDS/percentile derivations
+- **Laboratory follow-up**: hemoglobin, folic acid, vitamin B12, vitamin D, TSH (baseline and yearly summaries)
+- **Computational/modeling fields**: index year/date, follow-up year, time-from-index, grouped long-format test/value structure
 
-- `02-clean_data.R`  
-  Data curation and transformation:
-  - outlier filtering
-  - duplicate resolution
-  - BMI reshaping and derivation
-  - SDS calculations
-  - creation of analysis-ready long/wide datasets
+## Outcome definitions implemented in code
+In the current repository state, outcomes are longitudinal anthropometric and lab measurements over follow-up years. The code defines group comparison as `Case` vs `Control` and models repeated outcomes over time.
 
-- `03-analysis.R`  
-  Statistical analysis and reporting outputs:
-  - baseline descriptive summaries
-  - distribution checks and diagnostics
-  - longitudinal plotting
-  - linear mixed-effects modeling
-  - export of results tables/figures
+> Note: A centenarian vs non-centenarian classification is **not present** in the current scripts.
 
-## Statistical approach
-- **Descriptive statistics** for baseline comparison and cohort characterization.
-- **Longitudinal mixed-effects models** to account for repeated measurements within participants.
-- **Interaction terms** (e.g., time × group) to evaluate differential trends between surgery and control groups.
-- **Segmented follow-up windows** (e.g., 0–2 years and 2–5 years) where clinically/statistically appropriate.
-- **Visualization-first reporting** to pair model-based trends with observed trajectories.
+## High-level analytical workflow
+1. **Data loading and cleaning** (`01 - import_data.R`)  
+   Load raw CSVs, standardize names, parse dates, recode key variables.
+2. **Feature preparation / preprocessing** (`02 - clean_data.R`)  
+   Remove implausible outliers, reconcile duplicate measurements, reshape to analysis structures.
+3. **Missing data handling** (`00 - funcs.R`, `02 - clean_data.R`)  
+   Explicit NA filtering and height trajectory correction/imputation rules.
+4. **Train/test split and cross-validation**  
+   Not implemented in current scripts (workflow is longitudinal mixed-effects rather than ML train/test evaluation).
+5. **Logistic regression**  
+   Not implemented in current scripts.
+6. **LASSO logistic regression**  
+   Not implemented in current scripts.
+7. **XGBoost classification**  
+   Not implemented in current scripts.
+8. **Model evaluation** (`03 - analysis.R`, `04 - sex diff.R`)  
+   Descriptive tables, p-values, coefficient summaries, and visual diagnostics of model predictions.
+9. **Saving model objects/results**  
+   Save final datasets to `data/final_data.RData`; export tables/figures to `export/` and `export_sex/`.
 
-## Requirements
-- **R:** 4.4.2 or newer
-- **Core packages:**
-  - `tidyverse`
-  - `ggpubr`
-  - `zoo`
-  - `rstatix`
-  - `lme4`
-  - `sjPlot`
-  - `ggeffects`
-  - `patchwork`
-  - `broom.mixed`
-  - plus supporting packages such as `clipr`, `lubridate`, `janitor`, and `childsds`
+## Packages used (grouped by purpose)
+- **Data wrangling / utilities**: `tidyverse`, `janitor`, `lubridate`, `zoo`
+- **Descriptive statistics / tables**: `gtsummary`, `gt`, `flextable`, `rstatix`
+- **Modeling**: `lme4`, `lmerTest`, `rms`
+- **Visualization / model effects**: `ggpubr`, `sjPlot`, `ggeffects`, `patchwork`
+- **Specialized growth references**: `childsds`
+- **Model tidying support**: `broom.mixed`
 
-## Usage notes
-Because the underlying data include sensitive clinical information, raw data are not distributed with this repository.
+## How to run scripts (intended order)
+Run from repository root in this order:
+1. `source("01 - import_data.R")`
+2. `source("02 - clean_data.R")`
+3. `source("03 - analysis.R")`
+4. `source("04 - sex diff.R")` (optional, sex-focused outputs)
 
-You can use this project to:
-- understand the end-to-end clinical analytics pipeline (import → clean → model → visualize),
-- adapt the methods for similarly structured datasets,
-- reproduce the analytical strategy (not the original patient-level results).
+## Expected inputs and outputs
+### Inputs
+- `data/data.csv`
+- `data/bmi_data.csv`
 
-## Data privacy and reproducibility
-- **Data sharing:** Not possible due to privacy and governance constraints.
-- **Code sharing:** Full analysis logic is provided for transparency and methodological reuse.
-- **Reproducibility scope:** Conceptual/methodological reproducibility, not direct numerical replication without source data.
+### Outputs
+- `data/final_data.RData`
+- Tables: `export/*.docx`, `export_sex/*.docx`
+- Figures: `export/*.jpeg`, `export_sex/*.pdf`
 
-## Contact
-For scientific or analytic questions related to this repository, please contact:  
-**Dor Atias** — [atias_dor@mac.org.il](mailto:atias_dor@mac.org.il)
+## Reproducibility notes
+- The workflow depends on local file paths under `data/` and generated folders (`export`, `export_sex`).
+- Intermediate and final objects are persisted via `.RData` files.
+- Some analyses rely on deterministic transformations; explicit random seeds are not central in the current mixed-model scripts.
+- If run on a new system, verify:
+  - package versions,
+  - locale/date parsing behavior,
+  - and existence of expected directories before export.
 
----
-Maintained by the Bariatric Surgery Outcomes Research Group.
+## Limitations
+- Raw patient-level data are not included for privacy reasons.
+- Full numeric reproducibility requires access to the original source datasets.
+- Several modeling/data-cleaning rules are domain-specific and should be interpreted with clinical oversight.
+- Some variable mappings and thresholds are hard-coded and may require validation when adapting to new cohorts.
+
+## Potential issues to review with PI/domain experts
+- Clinical plausibility of outlier thresholds and imputation windows for anthropometric values.
+- Whether all fitted models should be included in coefficient summary exports (e.g., folic acid is modeled but not included in one summary table in `03 - analysis.R`).
+- Confirmation of baseline window definitions for laboratory values and subgroup assumptions.
+
+## Contact / citation
+If no formal citation guidance is available, add project-specific citation text here.
+
+For repository questions, add preferred contact details (analyst/team) in this section.
