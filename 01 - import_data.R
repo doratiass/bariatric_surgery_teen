@@ -141,6 +141,17 @@ df_raw <- read_csv("data/data.csv") %>%
         vitamin_d_last_sample_result_before_index
     ),
     .after = vitamin_d_last_sample_result_before_index
+  ) %>%
+  mutate(
+    last_sample_date = pmax(
+      folic_acid_last_sample_date_before_index,
+      hemoglobin_last_sample_date_before_index,
+      tsh_last_sample_date_before_index,
+      vitamin_b12_last_sample_date_before_index,
+      vitamin_d_last_sample_date_before_index,
+      na.rm = TRUE
+    ),
+    .after = index_year
   )
 
 # ---------------------------------------------------------------------------- #

@@ -75,15 +75,42 @@ models <- tests_tbl %>%
     )
   )
 
+# How many measurements were after the age of 19
+bmi_data_clean %>%
+  filter(fake_id %in% final_df_long$fake_id) %>%
+  left_join(
+    final_df_wide %>% select(fake_id, group) %>% distinct(),
+    by = "fake_id"
+  ) %>%
+  filter(group == "Case") %>%
+  mutate(
+    time_from_index = as.numeric(difftime(dates, index_date, units = "days")) /
+      365.25
+  ) %>%
+  filter(time_from_index <= 5) %>%
+  nrow()
+
+bmi_data_clean %>%
+  filter(fake_id %in% final_df_long$fake_id) %>%
+  left_join(
+    final_df_wide %>% select(fake_id, group) %>% distinct(),
+    by = "fake_id"
+  ) %>%
+  filter(group == "Case") %>%
+  mutate(
+    time_from_index = as.numeric(difftime(dates, index_date, units = "days")) /
+      365.25
+  ) %>%
+  filter(age > 19, time_from_index <= 5) %>%
+  distinct(fake_id) %>%
+  nrow()
+
 # Tables ----------------------------------------------------------------------
 ## Table 1 ----------------------------------------------------------------------
 tbl_1_sex <- final_df_long %>%
-  filter(group == "Case") %>%
-  group_by(fake_id) %>%
-  arrange(fake_id, year) %>%
-  slice(1) %>%
-  ungroup() %>%
-  select(-fake_id, -group, -year, -test, -value, -lipid) %>%
+  filter(group == "Case", year == 0, test %in% tests_tbl$test) %>%
+  select(-fake_id, -group, -year, -lipid, -index_year) %>%
+  pivot_wider(names_from = test, values_from = value) %>%
   rename_all(function(x) sapply(x, label_get, USE.NAMES = FALSE)) %>%
   tbl_summary(
     by = label_get("sex"),
@@ -93,8 +120,7 @@ tbl_1_sex <- final_df_long %>%
       all_continuous() ~ 'continuous'
     ),
     statistic = list(
-      all_continuous() ~ "{mean} ({sd})",
-      c(label_get("index_year")) ~ "{median} ({p25}, {p75})"
+      all_continuous() ~ "{mean} ({sd})"
     )
   ) %>%
   add_n(statistic = "{N_miss} ({p_miss})") %>%
@@ -108,17 +134,37 @@ tbl_1_sex %>%
 
 ## Table 2 ----------------------------------------------------------------------
 tbl_2_sex <- final_df_long %>%
-  filter(group == "Case", year == 0, test %in% tests_tbl$test) %>%
-  select(fake_id, sex, test, value) %>%
-  pivot_wider(names_from = test, values_from = value) %>%
-  select(-fake_id) %>%
+  filter(group == "Case", test %in% tests_tbl$test) %>%
+  group_by(fake_id) %>%
+  filter(year == max(year) | year == min(year)) %>%
+  group_by(fake_id, sex, test) %>%
+  summarise(
+    baseline = if (any(year == min(year))) {
+      value[which(year == min(year))[1]]
+    } else {
+      NA_real_
+    },
+    last = if (any(year == max(year))) {
+      value[which(year == max(year))[1]]
+    } else {
+      NA_real_
+    },
+    value_diff = ifelse(
+      is.na(baseline) | is.na(last) | length(unique(year)) == 1,
+      NA_real_,
+      last - baseline
+    ),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(names_from = test, values_from = value_diff) %>%
+  select(-fake_id, -baseline, -last) %>%
   rename_all(function(x) sapply(x, label_get, USE.NAMES = FALSE)) %>%
   tbl_summary(
     by = label_get("sex"),
     missing = "no"
   ) %>%
-  add_n(statistic = "{N_miss} ({p_miss})") %>%
-  modify_header(n = "**Missing**") %>%
+  # add_n(statistic = "{N_miss} ({p_miss})") %>%
+  # modify_header(n = "**Missing**") %>%
   add_p()
 
 tbl_2_sex %>%
@@ -186,12 +232,13 @@ gtsave(
   to = "docx"
 )
 
-
 # Visualize all plots ---------------------------------------------------------
+library(patchwork)
+
 fig_1_a <- models %>%
   filter(test %in% c("height_sds", "weight_sds", "bmi_sds")) %>%
   pull(plot) %>% # extract the list of ggplots
-  wrap_plots(ncol = 3, guides = "collect") + # “collect” = one shared legend
+  wrap_plots(ncol = 3, guides = "collect") & # “collect” = one shared legend
   theme(legend.position = "none")
 
 fig_1_b <- models %>%
@@ -207,7 +254,7 @@ fig_1_b <- models %>%
       ))
   ) %>%
   pull(plot) %>% # extract the list of ggplots
-  wrap_plots(ncol = 2, guides = "collect") + # “collect” = one shared legend
+  wrap_plots(ncol = 2, guides = "collect") & # “collect” = one shared legend
   theme(legend.position = "bottom")
 
 fig_1 <- fig_1_a /
@@ -215,9 +262,7 @@ fig_1 <- fig_1_a /
   plot_layout(heights = c(1, 2)) + # fig_1_b gets 1.5x the height of fig_1_a
   plot_annotation(tag_levels = "A")
 
-ggsave("export_sex/fig_1.pdf", fig_1, width = 15, height = 10, dpi = 900)
-
-library(patchwork)
+ggsave("export_sex/fig_1.png", fig_1, width = 15, height = 10, dpi = 900)
 
 # create patchwork and set shared legend + theme via plot_annotation
 fig_1_nds <- models %>%
@@ -228,9 +273,9 @@ fig_1_nds <- models %>%
   plot_annotation(tag_levels = "A", theme = theme(legend.position = "bottom"))
 
 ggsave(
-  "export_sex/fig_1_nds.pdf",
+  "export_sex/fig_1_nds.png",
   fig_1_nds,
-  width = 15,
-  height = 10,
+  width = 30 / 1.2,
+  height = 10 / 1.2,
   dpi = 900
 )

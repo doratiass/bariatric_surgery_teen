@@ -181,6 +181,7 @@ sum_bmi <- bmi_data_clean %>%
   mutate(year_from_index = ceiling(time_from_index / 365.25)) %>%
   group_by(fake_id, year = year_from_index) %>%
   summarise(
+    last_test_date = max(dates, na.rm = TRUE),
     bmi = mean(BMI, na.rm = TRUE),
     weight = mean(weight, na.rm = TRUE),
     height = mean(height, na.rm = TRUE),
@@ -190,6 +191,11 @@ sum_bmi <- bmi_data_clean %>%
     height_sds = mean(height_sds, na.rm = TRUE),
     .groups = "drop"
   ) %>%
+  group_by(fake_id) %>%
+  mutate(
+    last_test_date = max(last_test_date, na.rm = TRUE),
+  ) %>%
+  ungroup() %>%
   filter(year < 6) %>%
   pivot_longer(
     cols = c(bmi, weight, height, bmi_sds, bmi_perc, weight_sds, height_sds),
@@ -205,12 +211,12 @@ sum_bmi <- bmi_data_clean %>%
 # post-index average lab data. The pre-index lab data is filtered to a one-year
 # window (0 to 365 days from index_date).
 
-right_join(
+labs_raw <- right_join(
   df_raw %>%
-    select(fake_id, index_date, contains("before_index")) %>%
+    select(fake_id, index_date, last_sample_date, contains("before_index")) %>%
     select(-anti_depress_drugs_before_index) %>%
     pivot_longer(
-      cols = -c(fake_id, index_date), # Exclude fake_id and index_date from reshaping
+      cols = -c(fake_id, index_date, last_sample_date), # Exclude fake_id and index_date from reshaping
       names_to = c("test_name", ".value"), # Split column names into test_name and .value
       names_sep = "_last_sample_" # Use the separator to split column names
     ) %>%
@@ -221,13 +227,18 @@ right_join(
       diff >= 0,
       diff <= 365
     ) %>%
-    select(fake_id, test_name, result_before_index) %>%
+    select(
+      fake_id,
+      test_name,
+      last_test_date = last_sample_date,
+      result_before_index
+    ) %>%
     pivot_wider(
       names_from = test_name,
       values_from = result_before_index,
       names_glue = "{test_name}_0"
     ) %>%
-    select(fake_id, contains("_0")),
+    select(fake_id, last_test_date, contains("_0")),
   df_raw %>%
     select(fake_id, contains("avg")) %>%
     select(-contains("_25")) %>%
@@ -241,7 +252,7 @@ right_join(
       starts_with("avg_value_of_") # Apply only to relevant columns
     ),
   by = "fake_id"
-) -> labs_raw
+)
 
 # Reshape the labs data from wide to long format.
 labs <- labs_raw %>%
@@ -268,6 +279,7 @@ cohort_ids <- sum_bmi %>%
 final_df_long <- df_raw %>%
   select(
     index_year,
+    index_date,
     fake_id,
     group,
     age,
@@ -303,7 +315,13 @@ final_df_long <- df_raw %>%
     bind_rows(sum_bmi, labs),
     by = "fake_id"
   ) %>%
-  filter(fake_id %in% cohort_ids)
+  filter(fake_id %in% cohort_ids) %>%
+  mutate(
+    follow_up_time = as.numeric(
+      difftime(last_test_date, index_date, units = "days") / 365.25
+    )
+  ) %>%
+  select(-last_test_date, -index_date)
 
 # Convert the long-format dataset into a wide-format dataset.
 final_df_wide <- final_df_long %>%
@@ -313,6 +331,7 @@ final_df_wide <- final_df_long %>%
   )
 
 save(
+  bmi_data_clean,
   final_df_long,
   final_df_wide,
   file = "data/final_data.RData"
