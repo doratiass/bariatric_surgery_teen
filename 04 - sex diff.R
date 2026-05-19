@@ -109,8 +109,9 @@ bmi_data_clean %>%
 ## Table 1 ----------------------------------------------------------------------
 tbl_1_sex <- final_df_long %>%
   filter(group == "Case", year == 0, test %in% tests_tbl$test) %>%
-  select(-fake_id, -group, -year, -lipid, -index_year) %>%
   pivot_wider(names_from = test, values_from = value) %>%
+  select(-fake_id, -group, -year, -lipid, -index_year) %>%
+
   rename_all(function(x) sapply(x, label_get, USE.NAMES = FALSE)) %>%
   tbl_summary(
     by = label_get("sex"),

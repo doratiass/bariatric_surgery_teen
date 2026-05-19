@@ -143,14 +143,15 @@ df_raw <- read_csv("data/data.csv") %>%
     .after = vitamin_d_last_sample_result_before_index
   ) %>%
   mutate(
-    last_sample_date = pmax(
-      folic_acid_last_sample_date_before_index,
-      hemoglobin_last_sample_date_before_index,
-      tsh_last_sample_date_before_index,
-      vitamin_b12_last_sample_date_before_index,
-      vitamin_d_last_sample_date_before_index,
-      na.rm = TRUE
-    ),
+last_obs_year = case_when(
+  !is.na(avg_value_of_vitamin_b12_in_5th_year_from_index) | !is.na(avg_value_of_folic_acid_in_5th_year_from_index) | !is.na(avg_value_of_hemoglobin_in_5th_year_from_index) | !is.na(avg_value_of_tsh_in_5th_year_from_index) | !is.na(avg_value_of_vitamin_d_1_25_in_5th_year_from_index) | !is.na(avg_value_of_vitamin_d_24_25_in_5th_year_from_index) ~ 5,
+  !is.na(avg_value_of_vitamin_b12_in_4th_year_from_index) | !is.na(avg_value_of_folic_acid_in_4th_year_from_index) | !is.na(avg_value_of_hemoglobin_in_4th_year_from_index) | !is.na(avg_value_of_tsh_in_4th_year_from_index) | !is.na(avg_value_of_vitamin_d_1_25_in_4th_year_from_index) | !is.na(avg_value_of_vitamin_d_24_25_in_4th_year_from_index) ~ 4,
+  !is.na(avg_value_of_vitamin_b12_in_3rd_year_from_index) | !is.na(avg_value_of_folic_acid_in_3rd_year_from_index) | !is.na(avg_value_of_hemoglobin_in_3rd_year_from_index) | !is.na(avg_value_of_tsh_in_3rd_year_from_index) | !is.na(avg_value_of_vitamin_d_1_25_in_3rd_year_from_index) | !is.na(avg_value_of_vitamin_d_24_25_in_3rd_year_from_index) ~ 3,
+  !is.na(avg_value_of_vitamin_b12_in_2nd_year_from_index) | !is.na(avg_value_of_folic_acid_in_2nd_year_from_index) | !is.na(avg_value_of_hemoglobin_in_2nd_year_from_index) | !is.na(avg_value_of_tsh_in_2nd_year_from_index) | !is.na(avg_value_of_vitamin_d_1_25_in_2nd_year_from_index) | !is.na(avg_value_of_vitamin_d_24_25_in_2nd_year_from_index) ~ 2,
+  !is.na(avg_value_of_vitamin_b12_in_1st_year_from_index) | !is.na(avg_value_of_folic_acid_in_1st_year_from_index) | !is.na(avg_value_of_hemoglobin_in_1st_year_from_index) | !is.na(avg_value_of_tsh_in_1st_year_from_index) | !is.na(avg_value_of_vitamin_d_1_25_in_1st_year_from_index) | !is.na(avg_value_of_vitamin_d_24_25_in_1st_year_from_index) ~ 1,
+  TRUE ~ NA_real_
+),
+last_sample_date = index_date + years(last_obs_year),
     .after = index_year
   )
 
