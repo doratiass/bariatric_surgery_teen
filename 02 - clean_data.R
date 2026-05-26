@@ -321,7 +321,13 @@ final_df_long <- df_raw %>%
       difftime(last_test_date, index_date, units = "days") / 365.25
     )
   ) %>%
-  select(-last_test_date, -index_date)
+  select(-last_test_date, -index_date) %>%
+  group_by(fake_id) %>%
+  mutate(
+    follow_up_time = max(follow_up_time, na.rm = TRUE),
+    year = abs(year)
+  ) %>%
+  ungroup()
 
 # Convert the long-format dataset into a wide-format dataset.
 final_df_wide <- final_df_long %>%

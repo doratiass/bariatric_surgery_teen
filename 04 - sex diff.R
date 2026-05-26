@@ -111,7 +111,6 @@ tbl_1_sex <- final_df_long %>%
   filter(group == "Case", year == 0, test %in% tests_tbl$test) %>%
   pivot_wider(names_from = test, values_from = value) %>%
   select(-fake_id, -group, -year, -lipid, -index_year) %>%
-
   rename_all(function(x) sapply(x, label_get, USE.NAMES = FALSE)) %>%
   tbl_summary(
     by = label_get("sex"),
@@ -120,6 +119,7 @@ tbl_1_sex <- final_df_long %>%
       label_get("age") ~ 'continuous',
       all_continuous() ~ 'continuous'
     ),
+    digits = all_continuous() ~ 1,
     statistic = list(
       all_continuous() ~ "{mean} ({sd})"
     )
@@ -157,11 +157,13 @@ tbl_2_sex <- final_df_long %>%
     ),
     .groups = "drop"
   ) %>%
+  select(-baseline, -last) %>%
   pivot_wider(names_from = test, values_from = value_diff) %>%
-  select(-fake_id, -baseline, -last) %>%
+  select(-fake_id) %>%
   rename_all(function(x) sapply(x, label_get, USE.NAMES = FALSE)) %>%
   tbl_summary(
     by = label_get("sex"),
+    digits = all_continuous() ~ 1,
     missing = "no"
   ) %>%
   # add_n(statistic = "{N_miss} ({p_miss})") %>%
@@ -229,7 +231,7 @@ coef_table_gt <- coef_table %>%
 # Save the coefficient summary table as a DOCX file
 gtsave(
   coef_table_gt,
-  file = file.path("export_sex", "coef_table.docx"),
+  file = file.path("export_sex", "supp_tbl_1.docx"),
   to = "docx"
 )
 
